@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+    <template class="JBIconSlider" parent="GtkBox">
+        <property name="css-classes">icon-slider</property>
+        <child>
+            <object class="GtkToggleButton" id="button">
+                <property name="css-classes">slider-button</property>
+                <child>
+                    <object class="GtkBox" id="icon_box">
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <child>
+                            <object class="JBIcon" id="main_icon"/>
+                        </child>
+                        <child>
+                            <object class="JBIcon" id="second_icon">
+                                <property name="visible">false</property>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="GtkAdjustment" id="adjustment">
+                <property name="lower">0</property>
+                <property name="upper">100</property>
+                <property name="step-increment">1</property>
+                <property name="page-increment">5</property>
+                <property name="value">60</property>
+            </object>
+            <object class="GtkScale" id="slider">
+                <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                <property name="adjustment">adjustment</property>
+            </object>
+        </child>
+    </template>
+</interface>

@@ -1,0 +1,68 @@
+@use "colors" as *;
+
+.icon {
+  color: $orange;
+}
+
+.icon-slider {
+  color: $foreground;
+  padding: 0 6px 0 6px;
+}
+
+.slider-button {
+  color: $orange;
+  border-radius: 20px;
+  padding: 0 8px 0 6px;
+}
+
+.slider-button:hover {
+  background: $background1;
+}
+
+.icon-slider scale trough {
+  all: unset;
+  background-color: $gray;
+  border-radius: 10px;
+  min-height: 5px;
+  min-width: 50px;
+  margin-left: 2px;
+
+  highlight {
+    background-color: $orange;
+    color: $background;
+  }
+}
+
+.wifi-button {
+  padding: 6px 10px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+}
+
+.wifi-button:hover {
+  background: $background1;
+}
+
+.wifi-button:focus {
+  border: 1px solid $gray;
+}
+
+.wifi-button.connected {
+  border: 1px solid $orange;
+}
+
+spinner {
+  color: $orange;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+entry {
+  border: 1px solid $background1;
+  border-radius: 5px;
+  padding: 3px;
+}
+
+.password {
+  all: unset;
+}

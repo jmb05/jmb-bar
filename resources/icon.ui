@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+    <template class="JBIcon" parent="GtkBox">
+        <child>
+            <object class="GtkImage" id="image">
+                <property name="css-classes">icon</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkLabel" id="label">
+                <property name="css-classes">icon</property>
+            </object>
+        </child>
+    </template>
+</interface>

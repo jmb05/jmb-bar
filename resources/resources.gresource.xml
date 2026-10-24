@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<gresources>
+    <gresource prefix="/net/jmb19905/jmb-bar/">
+        <file compressed="true" preprocess="xml-stripblanks">utilities.ui</file>
+        <file compressed="true" preprocess="xml-stripblanks">icon.ui</file>
+        <file compressed="true" preprocess="xml-stripblanks">wifi_widget.ui</file>
+        <file compressed="true" preprocess="xml-stripblanks">icon_slider.ui</file>
+        <file compressed="true" preprocess="xml-stripblanks">expandable_bar_item.ui</file>
+    </gresource>
+</gresources>

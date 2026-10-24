@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+    <template class="JBExpandableBarItem" parent="GtkBox">
+        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+        <property name="spacing">4</property>
+        <property name="css-classes">expandable-bar-item</property>
+        <child>
+            <object class="GtkButton" id="main_button">
+                <property name="css-classes">expandable-main</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkRevealer" id="revealer">
+                <property name="transition-type">GTK_REVEALER_TRANSITION_TYPE_SLIDE_RIGHT</property>
+                <property name="transition-duration">500</property>
+                <property name="reveal-child">false</property>
+                <property name="css-classes">expandable-revealer</property>
+            </object>
+        </child>
+    </template>
+</interface>

@@ -1,0 +1,13 @@
+@use "colors" as *;
+
+.action-centre {
+  background: $background;
+  opacity: 0.9;
+  border-radius: 10px;
+  border: 2px solid $gray;
+  padding: 6px;
+}
+
+.action-centre:focus-within {
+  border: 2px solid $orange;
+}

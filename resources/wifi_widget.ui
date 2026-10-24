@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+    <template class="JBWifiWidget" parent="GtkButton">
+        <child>
+            <object class="GtkBox">
+                <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                <property name="spacing">4</property>
+                <child>
+                    <object class="JBIcon" id="wifi_icon">
+                        <property name="css-classes">wifi-icon</property>
+                        <property name="pixel-size">24</property>
+                    </object>
+                </child>
+                <child>
+                    <object class="GtkSpinner" id="spinner">
+                        <property name="css-classes">wifi-spinner</property>
+                    </object>
+                </child>
+                <child>
+                    <object class="GtkStack" id="stack">
+                        <child>
+                            <object class="GtkStackPage">
+                                <property name="name">ssid</property>
+                                <property name="child">
+                                    <object class="GtkLabel" id="ssid">
+                                        <property name="hexpand">true</property>
+                                    </object>
+                                </property>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="GtkStackPage">
+                                <property name="name">pass</property>
+                                <property name="child">
+                                    <object class="GtkPasswordEntry" id="password">
+                                        <property name="hexpand">true</property>
+                                        <property name="css-classes">password</property>
+                                    </object>
+                                </property>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+                <child>
+                    <object class="JBIcon" id="known">
+                        <property name="pixel-size">24</property>
+                    </object>
+                </child>
+                <child>
+                    <object class="JBIcon" id="secure">
+                        <property name="pixel-size">24</property>
+                    </object>
+                </child>
+            </object>
+        </child>
+    </template>
+</interface>

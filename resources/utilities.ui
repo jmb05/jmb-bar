@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+    <template class="JBUtilities" parent="GtkBox">
+        <property name="halign">GTK_ALIGN_END</property>
+        <property name="valign">GTK_ALIGN_FILL</property>
+        <property name="hexpand">true</property>
+        <property name="vexpand">true</property>
+        <property name="css-classes">utilities</property>
+        <child>
+            <object class="JBIconSlider" id="volume">
+
+            </object>
+        </child>
+        <child>
+            <object class="JBIconSlider" id="brightness">
+
+            </object>
+        </child>
+        <child>
+            <object class="GtkToggleButton" id="caffeine">
+
+            </object>
+        </child>
+        <child>
+            <object class="JBExpandableBarItem" id="stats">
+                <property name="spacing">0</property>
+                <property name="vexpand">true</property>
+                <property name="valign">GTK_ALIGN_FILL</property>
+                <property name="css-classes">stats</property>
+                <property name="main-child">
+                    <object class="JBIconLabel" id="cpu">
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <property name="spacing">8</property>
+                        <property name="font-icon"></property>
+                    </object>
+                </property>
+                <property name="second-child">
+                    <object class="GtkBox">
+                        <property name="spacing">8</property>
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <child>
+                            <object class="JBIconLabel" id="ram">
+                                <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                                <property name="spacing">8</property>
+                                <property name="font-icon"></property>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="JBIconLabel" id="disk">
+                                <property name="spacing">8</property>
+                                <property name="font-icon"></property>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="JBIconLabel" id="gpu">
+                                <property name="spacing">8</property>
+                                <property name="icon-path">icons/gpu-card.svg</property>
+                            </object>
+                        </child>
+                    </object>
+                </property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkButton" id="network">
+                <child>
+                    <object class="JBIconLabel">
+                        <property name="spacing">0</property>
+                        <property name="icon-path">icons/disconnected.svg</property>
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="GtkButton" id="vpn_button">
+                <child>
+                    <object class="JBIcon">
+                        <property name="font-icon"></property>
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="GtkRevealer" id="vpns">
+                <property name="transition-type">GTK_REVEALER_TRANSITION_TYPE_SLIDE_RIGHT</property>
+                <property name="transition-duration">500</property>
+                <property name="reveal-child">false</property>
+                <child>
+                    <object class="GtkBox">
+                        <property name="spacing">0</property>
+                        <property name="vexpand">true</property>
+                        <property name="valign">GTK_ALIGN_FILL</property>
+                        <child>
+                            <object class="GtkButton" id="wg">
+                                <property name="css-classes">vpn</property>
+                                <property name="label">wg</property>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="GtkButton" id="ts">
+                                <property name="css-classes">vpn</property>
+                                <property name="label">ts</property>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="JBExpandableBarItem" id="battery">
+                <property name="spacing">0</property>
+                <property name="vexpand">true</property>
+                <property name="valign">GTK_ALIGN_FILL</property>
+                <property name="css-classes">battery</property>
+                <property name="main-child">
+                    <object class="JBIconLabel" id="capacity">
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <property name="spacing">0</property>
+                        <property name="font-icon">none</property>
+                    </object>
+                </property>
+                <property name="second-child">
+                    <object class="GtkBox">
+                        <property name="spacing">0</property>
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <child>
+                            <object class="JBIconLabel" id="wattage">
+                                <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                                <property name="spacing">0</property>
+                                <property name="font-icon"></property>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="JBIconLabel" id="remaining_time">
+                                <property name="spacing">0</property>
+                                <property name="font-icon"></property>
+                            </object>
+                        </child>
+                    </object>
+                </property>
+            </object>
+        </child>
+        <child>
+            <object class="JBExpandableBarItem" id="clock">
+                <property name="spacing">0</property>
+                <property name="vexpand">true</property>
+                <property name="valign">GTK_ALIGN_FILL</property>
+                <property name="css-classes">clock</property>
+                <property name="second-child">
+                    <object class="GtkLabel" id="time_hidden"/>
+                </property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkButton" id="shutdown">
+                <child>
+                    <object class="JBIcon">
+                        <property name="font-icon"></property>
+                    </object>
+                </child>
+            </object>
+        </child>
+    </template>
+</interface>

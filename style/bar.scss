@@ -1,0 +1,274 @@
+@use "colors" as *;
+
+* {
+  all: unset;
+  font-size: 16px;
+  font-family: "JetBrains Mono", monospace;
+}
+
+button {
+  background: transparent;
+  color: $foreground;
+  border: unset;
+  padding: unset;
+  border-radius: unset;
+}
+
+.bar {
+  padding: 0 20px;
+}
+
+.dock {
+}
+
+.workspaces {
+  color: $foreground;
+  background: $background;
+  border-radius: 20px;
+  padding: 0 12px;
+}
+
+.workspace-button {
+  padding: 0 9px 0;
+  border-bottom: 3px solid transparent;
+}
+
+.workspace-button:hover {
+  background: $background1;
+  border-radius: 20px;
+}
+
+.workspace-button.active {
+  margin-bottom: 0;
+  border-radius: 0;
+  border-bottom: 3px solid $orange;
+}
+
+.submap {
+  padding: 0;
+}
+
+.submap.active {
+  background: $red;
+  border-radius: 20px;
+  padding: 0 4px;
+}
+
+.submap.active:hover {
+  background: $lightred;
+}
+
+.title {
+  color: $foreground;
+  background: $background;
+  border-radius: 20px;
+  padding: 0 12px;
+}
+
+.title.media {
+  background: $orange;
+}
+
+.title.media:hover {
+  background: $lightorange;
+}
+
+.title.media.playing {
+  background: $green;
+}
+
+.title.media.playing:hover {
+  background: $lightgreen;
+}
+
+.utilities {
+  color: $foreground;
+  background: $background;
+  border-radius: 20px;
+  padding: 0 12px;
+}
+
+.bt-icon {
+  color: $blue;
+}
+
+.bt-icon.muted {
+  color: $lightblue;
+}
+
+.brightness {
+  color: $foreground;
+  padding: 0 6px 0 6px;
+}
+
+.brightness-button {
+  color: $orange;
+  border-radius: 20px;
+  padding: 0 8px 0 6px;
+}
+
+.brightness-button:hover {
+  color: $orange;
+  background: $background1;
+  border-radius: 20px;
+}
+
+.caffeine {
+  color: $foreground;
+  padding: 0 8px;
+  border-radius: 20px;
+  margin: 3px 0 3px 6px;
+}
+
+.caffeine:hover {
+  color: $lightred;
+  background: $background1;
+}
+
+.caffeine.on {
+  background: $red;
+}
+
+.stats {
+  padding: 0 6px;
+}
+
+.stats:hover {
+  background: $background1;
+  border-radius: 20px;
+}
+
+.stats .expandable-content {
+  padding: 0 0 0 8px;
+}
+
+.stat-icon {
+  color: $orange;
+}
+
+.network {
+  border-radius: 20px;
+  padding: 0 6px;
+}
+
+.network:hover {
+  background: $background1;
+}
+
+.network-label {
+  padding-left: 6px;
+}
+
+.vpn-icon {
+  color: $red;
+  padding: 0 4px;
+}
+
+.vpn-icon:hover {
+  color: $lightred;
+}
+
+.vpn-icon.on {
+  color: $green;
+}
+
+.vpn-icon.on:hover {
+  color: $lightgreen;
+}
+
+.vpn {
+  color: $background;
+  background: $red;
+  border-radius: 20px;
+  padding: 0 8px;
+  margin: 3px 2px;
+}
+
+.vpn:hover {
+  background: $lightred;
+}
+
+.vpn.on {
+  background: $green;
+}
+
+.vpn.starting {
+  background: $yellow;
+}
+
+@keyframes blink_vpn {
+  to {
+    background-color: $yellow;
+  }
+}
+
+.vpn.unknown {
+  background: $red;
+  animation-name: blink_vpn;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.vpn.on:hover {
+  background: $lightgreen;
+}
+
+.battery:hover {
+  background: $background1;
+  border-radius: 20px;
+}
+
+.battery {
+  color: $foreground;
+  padding: 0 6px;
+}
+
+.battery.charging {
+  color: $green;
+}
+
+.battery.medium {
+  color: $yellow;
+}
+
+.battery.low {
+  color: $red;
+}
+
+@keyframes blink_battery {
+  to {
+    background-color: $urgent;
+    color: #282828;
+  }
+}
+
+.battery.critical {
+  color: $red;
+  border-radius: 20px;
+  animation-name: blink_battery;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.clock {
+  color: $foreground;
+  padding: 0 6px;
+}
+
+.clock:hover {
+  background: $background1;
+  border-radius: 20px;
+}
+
+.power-button {
+  color: $foreground;
+  padding: 0 0 0 6px;
+}
+
+.power-button:hover {
+  color: $lightred;
+}

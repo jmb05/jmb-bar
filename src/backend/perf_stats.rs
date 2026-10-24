@@ -91,33 +91,31 @@ impl BackendThread<Stats, ()> for StatsBackend {
                 let mut battery_draw: f32 = 0.0;
                 let mut battery_time: u64 = 0;
 
-                if let Ok(manager) = &manager {
-                    if let Ok(mut batteries) = manager.batteries() {
-                        match batteries.next() {
-                            Some(Ok(battery)) => {
-                                battery_charge =
-                                    battery.state_of_charge().get::<percent>().round() as u8;
-                                battery_state = battery.state();
-                                battery_draw = battery.energy_rate().get::<watt>();
-                                battery_time = if battery_state == State::Charging {
-                                    battery
-                                        .time_to_full()
-                                        .unwrap_or(Time::new::<millisecond>(0.0))
-                                        .get::<millisecond>()
-                                        as u64
-                                } else if battery_state == State::Discharging {
-                                    battery
-                                        .time_to_empty()
-                                        .unwrap_or(Time::new::<millisecond>(0.0))
-                                        .get::<millisecond>()
-                                        as u64
-                                } else {
-                                    0
-                                };
-                            }
-                            Some(Err(e)) => error!(&LOGGER, "Error accessing battery: {e:?}"),
-                            None => {}
+                if let Ok(manager) = &manager
+                    && let Ok(mut batteries) = manager.batteries()
+                {
+                    match batteries.next() {
+                        Some(Ok(battery)) => {
+                            battery_charge =
+                                battery.state_of_charge().get::<percent>().round() as u8;
+                            battery_state = battery.state();
+                            battery_draw = battery.energy_rate().get::<watt>();
+                            battery_time = if battery_state == State::Charging {
+                                battery
+                                    .time_to_full()
+                                    .unwrap_or(Time::new::<millisecond>(0.0))
+                                    .get::<millisecond>() as u64
+                            } else if battery_state == State::Discharging {
+                                battery
+                                    .time_to_empty()
+                                    .unwrap_or(Time::new::<millisecond>(0.0))
+                                    .get::<millisecond>() as u64
+                            } else {
+                                0
+                            };
                         }
+                        Some(Err(e)) => error!(&LOGGER, "Error accessing battery: {e:?}"),
+                        None => {}
                     }
                 }
 

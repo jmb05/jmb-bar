@@ -89,13 +89,13 @@ impl TailscaleBackend {
 
                     match serde_json::from_slice::<serde_json::Value>(line) {
                         Ok(notification) => {
-                            if let Some(state) = notification.get("State") {
-                                if !state.is_null() {
-                                    let state =
-                                        TailscaleState::try_from_value(state.as_i64().unwrap_or(4))
-                                            .unwrap_or(TailscaleState::Stopped);
-                                    instance.lock().expect("Couldn't get lock").publish(state);
-                                }
+                            if let Some(state) = notification.get("State")
+                                && !state.is_null()
+                            {
+                                let state =
+                                    TailscaleState::try_from_value(state.as_i64().unwrap_or(4))
+                                        .unwrap_or(TailscaleState::Stopped);
+                                instance.lock().expect("Couldn't get lock").publish(state);
                             }
                         }
                         Err(err) => {
@@ -174,11 +174,11 @@ fn initial_state() -> TailscaleState {
         .output()
     {
         let val: Result<serde_json::Value, _> = serde_json::from_slice(&output.stdout);
-        if val.is_ok() {
-            if let Some(res) = val.unwrap().get("BackendState").and_then(|v| v.as_str()) {
-                if res.eq("Running") {
-                    return TailscaleState::Running;
-                }
+        if let Ok(val) = val {
+            if let Some(res) = val.get("BackendState").and_then(|v| v.as_str())
+                && res.eq("Running")
+            {
+                return TailscaleState::Running;
             }
         } else {
             error!(&LOGGER, "{:?}", val.err());

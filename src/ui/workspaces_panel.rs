@@ -7,7 +7,10 @@ use hyprland::prelude::HyprDataActive;
 use jmb_logger_rs::*;
 use std::collections::HashMap;
 
-pub(crate) fn build(buttons: &mut HashMap<i32, Button>, monitor: Option<u32>) -> (gtk::Box, Button) {
+pub(crate) fn build(
+    buttons: &mut HashMap<i32, Button>,
+    monitor: Option<u32>,
+) -> (gtk::Box, Button) {
     let workspaces = gtk::Box::new(Orientation::Horizontal, 0);
     workspaces.set_halign(Align::Start);
     workspaces.set_valign(Align::Center);
@@ -24,13 +27,12 @@ pub(crate) fn build(buttons: &mut HashMap<i32, Button>, monitor: Option<u32>) ->
 
         let initial_workspace = Workspace::get_active()
             .ok()
-            .map(|workspace| workspace.id().unwrap_or(1) as i32)
+            .map(|workspace| workspace.id().unwrap_or(1))
             .unwrap_or(1);
 
         let is_active_ws_on_current_monitor = Workspace::get_active()
             .ok()
-            .map(|ws| ws.monitor_id)
-            .flatten()
+            .and_then(|ws| ws.monitor_id)
             .is_some_and(|id| monitor.is_some_and(|other_id| id == other_id as i128));
 
         if workspace == initial_workspace && is_active_ws_on_current_monitor {
@@ -41,8 +43,14 @@ pub(crate) fn build(buttons: &mut HashMap<i32, Button>, monitor: Option<u32>) ->
             button.set_visible(true);
         }
         button.connect_clicked(move |_button| {
-            if let Err(err) = HyprlandComms::dispatch(&format!("hl.dsp.focus({{ workspace = {workspace} }})")) {
-                warn!(&LOGGER, "Couldn't change workspace focus {}", err.to_string());
+            if let Err(err) =
+                HyprlandComms::dispatch(&format!("hl.dsp.focus({{ workspace = {workspace} }})"))
+            {
+                warn!(
+                    &LOGGER,
+                    "Couldn't change workspace focus {}",
+                    err.to_string()
+                );
             }
         });
         workspaces.append(&button);

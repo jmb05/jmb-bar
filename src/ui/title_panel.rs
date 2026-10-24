@@ -17,22 +17,21 @@ pub fn build() -> Button {
     title.set_visible(false);
     title.add_css_class("title");
     title.connect_clicked(|button| {
-        if button.has_css_class("media") {
-            if let Ok(player_finder) = PlayerFinder::new() {
-                if let Ok(player) = player_finder.find_active() {
-                    let _ = player.play_pause();
-                }
-            }
+        if button.has_css_class("media")
+            && let Ok(player_finder) = PlayerFinder::new()
+            && let Ok(player) = player_finder.find_active()
+        {
+            let _ = player.play_pause();
         }
     });
 
     let right_click = GestureClick::new();
     right_click.set_button(3);
     right_click.connect_pressed(|_gesture, _n_press, _, _| {
-        if let Ok(player_finder) = PlayerFinder::new() {
-            if let Ok(player) = player_finder.find_active() {
-                let _ = player.stop();
-            }
+        if let Ok(player_finder) = PlayerFinder::new()
+            && let Ok(player) = player_finder.find_active()
+        {
+            let _ = player.stop();
         }
     });
     title.add_controller(right_click);
@@ -41,35 +40,35 @@ pub fn build() -> Button {
 
 pub fn manage_title(button_opt: &Option<Button>, player_opt: &Option<Player>) {
     let mut handled = false;
-    if let Some(button) = button_opt {
-        if let Some(player) = player_opt {
-            if let Ok(status) = player.get_playback_status() {
-                if let Ok(metadata) = player.get_metadata() {
-                    match status {
-                        PlaybackStatus::Playing => {
-                            button.set_visible(true);
-                            button.child()
-                                .and_downcast::<Label>()
-                                .unwrap()
-                                .set_label(&format!(" {}", metadata.title().unwrap_or("")));
-                            button.add_css_class("media");
-                            button.add_css_class("playing");
-                            handled = true;
-                        }
-                        PlaybackStatus::Paused => {
-                            button.set_visible(true);
-                            button.child()
-                                .and_downcast::<Label>()
-                                .unwrap()
-                                .set_label(&format!(" {}", metadata.title().unwrap_or("")));
-                            button.add_css_class("media");
-                            button.remove_css_class("playing");
-                            handled = true;
-                        }
-                        PlaybackStatus::Stopped => {},
-                    }
-                }
+    if let Some(button) = button_opt
+        && let Some(player) = player_opt
+        && let Ok(status) = player.get_playback_status()
+        && let Ok(metadata) = player.get_metadata()
+    {
+        match status {
+            PlaybackStatus::Playing => {
+                button.set_visible(true);
+                button
+                    .child()
+                    .and_downcast::<Label>()
+                    .unwrap()
+                    .set_label(&format!(" {}", metadata.title().unwrap_or("")));
+                button.add_css_class("media");
+                button.add_css_class("playing");
+                handled = true;
             }
+            PlaybackStatus::Paused => {
+                button.set_visible(true);
+                button
+                    .child()
+                    .and_downcast::<Label>()
+                    .unwrap()
+                    .set_label(&format!(" {}", metadata.title().unwrap_or("")));
+                button.add_css_class("media");
+                button.remove_css_class("playing");
+                handled = true;
+            }
+            PlaybackStatus::Stopped => {}
         }
         if !handled {
             button.set_visible(true);
@@ -87,7 +86,8 @@ pub fn set_title(title: &str, title_button: &Option<Button>) {
         } else {
             button.set_visible(true);
         }
-        button.child()
+        button
+            .child()
             .and_downcast::<Label>()
             .unwrap()
             .set_label(&HyprlandComms::get_current_title());

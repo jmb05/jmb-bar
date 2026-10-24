@@ -136,34 +136,31 @@ impl ActionCentre {
         glib::timeout_add_local(Duration::from_millis(100), move || {
             while let Ok(message) = net_rx.try_recv() {
                 match message {
-                    NetworkState::ChangeNetwork(info) => match info {
-                        Some(info) => {
-                            for (name, widget) in wifi_networks_clone.borrow().iter() {
-                                if name.eq(&info.name) {
-                                    widget.add_css_class("connected");
-                                } else {
-                                    widget.remove_css_class("connected");
-                                }
+                    NetworkState::ChangeNetwork(Some(info)) => {
+                        for (name, widget) in wifi_networks_clone.borrow().iter() {
+                            if name.eq(&info.name) {
+                                widget.add_css_class("connected");
+                            } else {
+                                widget.remove_css_class("connected");
                             }
                         }
-                        None => {}
-                    },
+                    }
                     NetworkState::Networks(networks) => {
                         for network in &networks {
                             let borrowed_wifi_networks_clone = wifi_networks_clone.borrow_mut();
                             let widget = borrowed_wifi_networks_clone.get(&network.name);
-                            if widget.is_none() {
+                            if let Some(widget) = widget {
+                                let idx = ((network.signal as f32 / 100.0)
+                                    * (WIFI_ICONS.len() - 1) as f32
+                                    + 0.5) as usize;
+                                widget.set_wifi_icon_from_name(WIFI_ICONS[idx]);
+                            } else {
                                 let widget = Self::create_wifi_widget(
                                     &channels,
                                     network,
                                     borrowed_wifi_networks_clone,
                                 );
                                 content.append(&widget);
-                            } else {
-                                let idx = ((network.signal as f32 / 100.0)
-                                    * (WIFI_ICONS.len() - 1) as f32
-                                    + 0.5) as usize;
-                                widget.unwrap().set_wifi_icon_from_name(WIFI_ICONS[idx]);
                             }
                         }
                         let mut removal: Vec<String> = Vec::new();
@@ -179,7 +176,7 @@ impl ActionCentre {
                         }
                     }
                     NetworkState::Auth(ssid, auth) => {
-                        if let Some(widget) = Self::find_focused_widget((&window_clone).as_ref()) {
+                        if let Some(widget) = Self::find_focused_widget(window_clone.as_ref()) {
                             match auth {
                                 AuthType::Password => {
                                     if widget.ssid().eq(&ssid) {
@@ -268,7 +265,7 @@ impl ActionCentre {
         wifi_networks: &Rc<RefCell<HashMap<String, WifiWidget>>>,
         window: &ApplicationWindow,
     ) {
-        for (_, widget) in wifi_networks.clone().borrow().iter() {
+        for widget in wifi_networks.clone().borrow().values() {
             let focused_inside = window.focus().is_some_and(|mut focus| {
                 loop {
                     if focus == *widget {
@@ -329,8 +326,6 @@ impl ActionCentre {
         if !window.is_visible() {
             self.animate_margin(-window.width() - 20, 20, ANIMATION_DURATION, || {});
             window.present();
-        } else {
-            return;
         }
     }
 

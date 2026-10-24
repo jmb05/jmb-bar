@@ -80,11 +80,7 @@ fn create_bar(
         .expect("Tried taking unavailable Hyprland Channel Receiver");
 
     let player_opt = if let Ok(player_finder) = PlayerFinder::new() {
-        if let Ok(player) = player_finder.find_active() {
-            Some(player)
-        } else {
-            None
-        }
+        player_finder.find_active().ok()
     } else {
         None
     };
@@ -105,10 +101,10 @@ fn create_bar(
     window.set_anchor(Edge::Left, true);
     window.set_anchor(Edge::Right, true);
     window.set_margin(Edge::Top, 20);
-    if let Some(monitor) = monitors.item(monitor_idx) {
-        if let Ok(monitor) = monitor.downcast::<gdk::Monitor>() {
-            window.set_monitor(Some(&monitor));
-        }
+    if let Some(monitor) = monitors.item(monitor_idx)
+        && let Ok(monitor) = monitor.downcast::<gdk::Monitor>()
+    {
+        window.set_monitor(Some(&monitor));
     }
 
     window.set_exclusive_zone(30);
@@ -116,10 +112,7 @@ fn create_bar(
     let mut buttons: HashMap<i32, Button> = HashMap::new();
     let (workspaces, submap) = workspaces_panel::build(
         &mut buttons,
-        window
-            .monitor()
-            .map(|monitor| monitor_index(&monitor))
-            .flatten(),
+        window.monitor().and_then(|monitor| monitor_index(&monitor)),
     );
 
     let title_button: Option<Button>;
@@ -205,7 +198,7 @@ fn handle_wm_event(
             for (&id, button) in buttons {
                 if id == workspace
                     && current_monitor.as_ref().is_none_or(|cur_mon| {
-                        monitor_index(&cur_mon).is_some_and(|idx| idx == monitor as u32)
+                        monitor_index(cur_mon).is_some_and(|idx| idx == monitor as u32)
                     })
                 {
                     button.set_visible(true);

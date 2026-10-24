@@ -307,8 +307,8 @@ impl BackendThread<MediaCommand, Sender<MediaCommand>> for MediaBackend {
             loop {
                 while let Ok(msg) = controller_rx.try_recv() {
                     match msg {
-                        ControllerMsg::Request => {
-                            let _ = instance_clone.lock().expect("Couldn't get lock").publish(
+                        Request => {
+                            instance_clone.lock().expect("Couldn't get lock").publish(
                                 MediaCommand::Cmd(
                                     controller.current_vol,
                                     controller.current_mute,
@@ -319,7 +319,7 @@ impl BackendThread<MediaCommand, Sender<MediaCommand>> for MediaBackend {
                         ControllerMsg::NotifyServer => {
                             controller.query_default_device_blocking();
                             let _ = controller.query_state_blocking();
-                            let _ = instance_clone.lock().expect("Couldn't get lock").publish(
+                            instance_clone.lock().expect("Couldn't get lock").publish(
                                 MediaCommand::Cmd(
                                     controller.current_vol,
                                     controller.current_mute,
@@ -331,14 +331,13 @@ impl BackendThread<MediaCommand, Sender<MediaCommand>> for MediaBackend {
                             if controller.device_index.is_some_and(|i| i == idx) {
                                 let changed = controller.query_state_blocking();
                                 if changed {
-                                    let _ = instance_clone
-                                        .lock()
-                                        .expect("Couldn't get lock")
-                                        .publish(MediaCommand::Cmd(
+                                    instance_clone.lock().expect("Couldn't get lock").publish(
+                                        MediaCommand::Cmd(
                                             controller.current_vol,
                                             controller.current_mute,
                                             controller.device_bt.unwrap_or(false),
-                                        ));
+                                        ),
+                                    );
                                     trace!(
                                         &LOGGER,
                                         "Change: {} muted: {}",
@@ -350,7 +349,7 @@ impl BackendThread<MediaCommand, Sender<MediaCommand>> for MediaBackend {
                         }
                         ControllerMsg::Set(volume, mute) => {
                             controller.set_state(volume, mute);
-                            let _ = instance_clone.lock().expect("Couldn't get lock").publish(
+                            instance_clone.lock().expect("Couldn't get lock").publish(
                                 MediaCommand::Cmd(
                                     controller.current_vol,
                                     controller.current_mute,

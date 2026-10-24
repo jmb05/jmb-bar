@@ -39,7 +39,7 @@ impl PartialEq<Self> for NetworkInfo {
 
 impl PartialOrd<Self> for NetworkInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.cmp(self))
+        Some(self.cmp(other))
     }
 }
 
@@ -82,20 +82,17 @@ impl From<ConnectionError> for ConnectError {
         match value {
             ConnectionError::AuthFailed => ConnectError::AuthFailed,
             ConnectionError::NotFound => ConnectError::NotFound,
-            ConnectionError::Dbus(err) => match err {
-                Error::MethodError(name, ..) => {
-                    if name.eq(&ErrorName::try_from(
-                        "org.freedesktop.NetworkManager.Device.SpecificObjectNotFound",
-                    )
-                    .unwrap())
-                    {
-                        ConnectError::NotFound
-                    } else {
-                        ConnectError::Unknown
-                    }
+            ConnectionError::Dbus(Error::MethodError(name, ..)) => {
+                if name.eq(&ErrorName::try_from(
+                    "org.freedesktop.NetworkManager.Device.SpecificObjectNotFound",
+                )
+                .unwrap())
+                {
+                    ConnectError::NotFound
+                } else {
+                    ConnectError::Unknown
                 }
-                _ => ConnectError::Unknown,
-            },
+            }
             _ => ConnectError::Unknown,
         }
     }
@@ -208,13 +205,13 @@ impl BackendThread<NetworkState, UnboundedSender<NetworkCommand>> for NetworkBac
                                             } else {
                                                 match auth {
                                                     Auth::Open => {
-                                                        if let Ok(networks) = nm.list_access_points(None).await {
-                                                            if let Some(ap) = networks.iter().find(|net| net.ssid.eq(&ssid)) {
-                                                                if ap.security.is_open() {
-                                                                    instance_clone.connect(&nm, ssid, WifiSecurity::Open).await;
-                                                                } else {
-                                                                    instance_clone.publish(NetworkState::Auth(ssid, AuthType::Password));
-                                                                }
+                                                        if let Ok(networks) = nm.list_access_points(None).await
+                                                            && let Some(ap) = networks.iter().find(|net| net.ssid.eq(&ssid))
+                                                        {
+                                                            if ap.security.is_open() {
+                                                                instance_clone.connect(&nm, ssid, WifiSecurity::Open).await;
+                                                            } else {
+                                                                instance_clone.publish(NetworkState::Auth(ssid, AuthType::Password));
                                                             }
                                                         }
                                                     }
@@ -269,23 +266,23 @@ impl NetworkBackendHandle {
     }
 
     async fn print_network_info(&self, nm: &NetworkManager, ssid: &str, level: Level) {
-        if let Ok(nets) = nm.list_networks(None).await {
-            if let Some(net) = nets.iter().find(|net| net.ssid.eq(ssid)) {
-                log!(&LOGGER, level, "Network:");
-                log!(&LOGGER, level, "  SSID: {}", net.ssid);
-                log!(&LOGGER, level, "  Active: {}", net.is_active);
-                log!(&LOGGER, level, "  Known: {}", net.known);
-                log!(&LOGGER, level, "  Secured: {}", net.secured);
-                if net.secured {
-                    log!(&LOGGER, level, "    Features: {:?}", net.security_features);
-                    log!(&LOGGER, level, "    EAP: {}", net.is_eap);
-                    log!(&LOGGER, level, "    PSK: {}", net.is_psk);
-                }
-                log!(&LOGGER, level, "  Strength: {:?}", net.strength);
-                log!(&LOGGER, level, "  Device: {}", net.device);
-                log!(&LOGGER, level, "  Addr(4): {:?}", net.ip4_address);
-                log!(&LOGGER, level, "  Addr(6): {:?}", net.ip6_address);
+        if let Ok(nets) = nm.list_networks(None).await
+            && let Some(net) = nets.iter().find(|net| net.ssid.eq(ssid))
+        {
+            log!(&LOGGER, level, "Network:");
+            log!(&LOGGER, level, "  SSID: {}", net.ssid);
+            log!(&LOGGER, level, "  Active: {}", net.is_active);
+            log!(&LOGGER, level, "  Known: {}", net.known);
+            log!(&LOGGER, level, "  Secured: {}", net.secured);
+            if net.secured {
+                log!(&LOGGER, level, "    Features: {:?}", net.security_features);
+                log!(&LOGGER, level, "    EAP: {}", net.is_eap);
+                log!(&LOGGER, level, "    PSK: {}", net.is_psk);
             }
+            log!(&LOGGER, level, "  Strength: {:?}", net.strength);
+            log!(&LOGGER, level, "  Device: {}", net.device);
+            log!(&LOGGER, level, "  Addr(4): {:?}", net.ip4_address);
+            log!(&LOGGER, level, "  Addr(6): {:?}", net.ip6_address);
         }
     }
 
@@ -304,7 +301,7 @@ impl NetworkBackendHandle {
             NetworkEvent::WirelessEnabledChanged => {
                 if let Ok(state) = nm.wifi_state().await {
                     if !state.enabled {
-                        let _ = self.publish(NetworkState::ChangeNetwork(None));
+                        self.publish(NetworkState::ChangeNetwork(None));
                     } else {
                         let _ = self.send_active_connection(nm).await;
                     }
@@ -313,23 +310,22 @@ impl NetworkBackendHandle {
             NetworkEvent::ActiveConnectionsChanged => {
                 let _ = self.send_active_connection(nm).await;
             }
-            NetworkEvent::DeviceChanged { interface } => match interface {
-                Some(interface) => match nm.active_vpn_connections().await {
-                    Ok(connections) => {
-                        let mut connected = false;
-                        for conn in connections {
-                            if conn.interface.is_some_and(|s| s.eq(&interface)) {
-                                connected = true;
-                            }
+            NetworkEvent::DeviceChanged {
+                interface: Some(interface),
+            } => match nm.active_vpn_connections().await {
+                Ok(connections) => {
+                    let mut connected = false;
+                    for conn in connections {
+                        if conn.interface.is_some_and(|s| s.eq(&interface)) {
+                            connected = true;
                         }
-                        let _ = self.publish(NetworkState::VpnState {
-                            profile: interface,
-                            connected,
-                        });
                     }
-                    Err(err) => error!(&LOGGER, "Error getting active vpns: {}", err.to_string()),
-                },
-                None => {}
+                    self.publish(NetworkState::VpnState {
+                        profile: interface,
+                        connected,
+                    });
+                }
+                Err(err) => error!(&LOGGER, "Error getting active vpns: {}", err.to_string()),
             },
             _ => {}
         }
@@ -443,7 +439,7 @@ impl NetworkBackendHandle {
                                 secured: None,
                                 known: true,
                             };
-                            let _ = self.publish(NetworkState::ChangeNetwork(Some(info)));
+                            self.publish(NetworkState::ChangeNetwork(Some(info)));
                         }
                         ActiveConnection::Wifi(c) => {
                             let info = NetworkInfo {
@@ -453,13 +449,13 @@ impl NetworkBackendHandle {
                                 secured: None, // Not relevant here
                                 known: true,
                             };
-                            let _ = self.publish(NetworkState::ChangeNetwork(Some(info)));
+                            self.publish(NetworkState::ChangeNetwork(Some(info)));
                         }
                         _ => {}
                     }
                 }
                 None => {
-                    let _ = self.publish(NetworkState::ChangeNetwork(None));
+                    self.publish(NetworkState::ChangeNetwork(None));
                 }
             }
         }
@@ -478,11 +474,8 @@ impl NetworkBackendHandle {
             Ok::<bool, Box<dyn std::error::Error>>(active.iter().any(|vpn| vpn.name == profile))
         };
 
-        match operation.await {
-            Ok(connected) => {
-                let _ = self.publish(NetworkState::VpnState { profile, connected });
-            }
-            Err(_) => {}
+        if let Ok(connected) = operation.await {
+            self.publish(NetworkState::VpnState { profile, connected });
         }
     }
 }

@@ -45,13 +45,13 @@ impl BackendThread<WindowManagerEvent, ()> for HyprlandComms {
 
             let inst_clone = instance.clone();
             listener.add_workspace_changed_handler(move |workspace| {
-                if let WorkspaceType::Regular(name) = workspace.name {
-                    if let Ok(id) = name.parse::<i32>() {
-                        inst_clone
-                            .lock()
-                            .expect("Couldn't get Subscribers")
-                            .publish(WindowManagerEvent::WorkspaceChanged(id));
-                    }
+                if let WorkspaceType::Regular(name) = workspace.name
+                    && let Ok(id) = name.parse::<i32>()
+                {
+                    inst_clone
+                        .lock()
+                        .expect("Couldn't get Subscribers")
+                        .publish(WindowManagerEvent::WorkspaceChanged(id));
                 }
             });
 
@@ -84,13 +84,13 @@ impl BackendThread<WindowManagerEvent, ()> for HyprlandComms {
 
             let inst_clone = instance.clone();
             listener.add_workspace_deleted_handler(move |workspace| {
-                if let WorkspaceType::Regular(name) = workspace.name {
-                    if let Ok(id) = name.parse::<i32>() {
-                        inst_clone
-                            .lock()
-                            .expect("Couldn't get Subscribers")
-                            .publish(WindowManagerEvent::WorkspaceRemoved(id));
-                    }
+                if let WorkspaceType::Regular(name) = workspace.name
+                    && let Ok(id) = name.parse::<i32>()
+                {
+                    inst_clone
+                        .lock()
+                        .expect("Couldn't get Subscribers")
+                        .publish(WindowManagerEvent::WorkspaceRemoved(id));
                 }
             });
 
@@ -159,10 +159,10 @@ impl BackendThread<WindowManagerEvent, ()> for HyprlandComms {
 
 impl HyprlandComms {
     fn monitor_id_from_workspace_id(id: WorkspaceId) -> Option<MonitorId> {
-        if let Ok(wss) = Workspaces::get() {
-            if let Some(ws) = wss.to_vec().iter().find(|ws| ws.id().unwrap() == id) {
-                return ws.monitor_id;
-            }
+        if let Ok(wss) = Workspaces::get()
+            && let Some(ws) = wss.to_vec().iter().find(|ws| ws.id().unwrap() == id)
+        {
+            return ws.monitor_id;
         }
         None
     }

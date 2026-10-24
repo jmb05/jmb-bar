@@ -148,7 +148,7 @@ pub fn build(
                 button.remove_css_class("on")
             }
         } else {
-            if let Ok(_) = child.as_mut().unwrap().kill() {
+            if child.as_mut().unwrap().kill().is_ok() {
                 let _ = child.take();
                 button.add_css_class("on");
             }
@@ -316,10 +316,9 @@ pub fn build(
 
     glib::timeout_add_local(Duration::from_millis(1000), move || {
         let timestamp = time_format::now().unwrap();
-        let time_str = time_format::strftime_local("%H:%M", timestamp).unwrap_or(String::new());
+        let time_str = time_format::strftime_local("%H:%M", timestamp).unwrap_or_default();
         time.set_title(&time_str);
-        let time_sec =
-            time_format::strftime_local(":%S %Y-%m-%d", timestamp).unwrap_or(String::new());
+        let time_sec = time_format::strftime_local(":%S %Y-%m-%d", timestamp).unwrap_or_default();
         time_hidden.set_label(&time_sec);
         ControlFlow::Continue
     });
@@ -332,46 +331,40 @@ pub fn build(
     let hypridle = channels.hypridle();
     glib::timeout_add_local(Duration::from_millis(100), move || {
         while let Ok(command) = media_rx.try_recv() {
-            match command {
-                MediaCommand::Cmd(vol, mute, bt) => {
-                    changed_progr.set(true);
-                    volume.set_value(vol as f64);
-                    changed_progr.set(false);
-                    volume.show_scale(!mute);
-                    volume.imp().button.set_active(mute);
-                    if mute {
-                        volume.imp().button.add_css_class("muted");
-                        volume.imp().second_icon.add_child_css_class("muted");
-                        volume
-                            .imp()
-                            .main_icon
-                            .set_icon_path("icons/volume-mute.svg");
-                    } else {
-                        volume.imp().button.remove_css_class("muted");
-                        volume.imp().second_icon.remove_child_css_class("muted");
-                        let idx = ((volume.value() / 100.0) * (VOLUME_ICON_PATHS.len() - 1) as f64
-                            + 0.5) as usize;
-                        volume.imp().main_icon.set_icon_path(VOLUME_ICON_PATHS[idx]);
-                    }
-                    volume.imp().second_icon.set_visible(bt);
+            if let MediaCommand::Cmd(vol, mute, bt) = command {
+                changed_progr.set(true);
+                volume.set_value(vol as f64);
+                changed_progr.set(false);
+                volume.show_scale(!mute);
+                volume.imp().button.set_active(mute);
+                if mute {
+                    volume.imp().button.add_css_class("muted");
+                    volume.imp().second_icon.add_child_css_class("muted");
+                    volume
+                        .imp()
+                        .main_icon
+                        .set_icon_path("icons/volume-mute.svg");
+                } else {
+                    volume.imp().button.remove_css_class("muted");
+                    volume.imp().second_icon.remove_child_css_class("muted");
+                    let idx = ((volume.value() / 100.0) * (VOLUME_ICON_PATHS.len() - 1) as f64
+                        + 0.5) as usize;
+                    volume.imp().main_icon.set_icon_path(VOLUME_ICON_PATHS[idx]);
                 }
-                _ => {}
+                volume.imp().second_icon.set_visible(bt);
             }
         }
         while let Ok(message) = br_rx.try_recv() {
-            match message {
-                BrightnessMessage::Value(mon, value) => {
-                    if monitor.eq(&mon) {
-                        brightness.set_value(value as f64);
-                        let idx = ((value as f32 / 100.0) * (BRIGHTNESS_ICONS.len() - 1) as f32
-                            + 0.5) as usize;
-                        brightness
-                            .imp()
-                            .main_icon
-                            .set_font_icon(BRIGHTNESS_ICONS[idx]);
-                    }
-                }
-                _ => {}
+            if let BrightnessMessage::Value(mon, value) = message
+                && monitor.eq(&mon)
+            {
+                brightness.set_value(value as f64);
+                let idx =
+                    ((value as f32 / 100.0) * (BRIGHTNESS_ICONS.len() - 1) as f32 + 0.5) as usize;
+                brightness
+                    .imp()
+                    .main_icon
+                    .set_font_icon(BRIGHTNESS_ICONS[idx]);
             }
         }
         if let Ok(mut hypridle) = hypridle.try_lock() {
@@ -416,16 +409,13 @@ pub fn build(
                         }
                     }
                 }
-                NetworkState::VpnState { connected, profile } => match profile.as_str() {
-                    "wg" => {
-                        if connected {
-                            wg_button.add_css_class("on");
-                        } else {
-                            wg_button.remove_css_class("on");
-                        }
+                NetworkState::VpnState { connected, profile } if profile.as_str() == "wg" => {
+                    if connected {
+                        wg_button.add_css_class("on");
+                    } else {
+                        wg_button.remove_css_class("on");
                     }
-                    _ => {}
-                },
+                }
                 _ => {}
             }
         }
@@ -468,9 +458,8 @@ pub fn build(
                 }
             }
 
-            for gpu in stats.gpus {
+            if let Some(gpu) = stats.gpus.into_iter().next() {
                 gpu_label.set_label(&format!("{}%", gpu.1));
-                break;
             }
 
             set_battery_css_classes(&battery_widget, stats.battery_state, stats.battery_charge);

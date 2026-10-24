@@ -15,7 +15,7 @@ use std::{fs, thread};
 
 pub enum DisplayBackend {
     Sysfs(BrightnessDevice),
-    DdcCi(ddc_hi::Display),
+    DdcCi(Box<ddc_hi::Display>),
 }
 
 fn get_sysfs_dev(id: &str) -> Option<BrightnessDevice> {
@@ -47,7 +47,7 @@ impl DisplayBackend {
 
     pub fn get_brightness(&mut self) -> Option<u8> {
         match self {
-            DisplayBackend::Sysfs(dev) => dev.get().and_then(|val| Ok(val as u8)).ok(),
+            DisplayBackend::Sysfs(dev) => dev.get().map(|val| val as u8).ok(),
             DisplayBackend::DdcCi(display) => {
                 if let Ok(val) = display.handle.get_vcp_feature(0x10) {
                     Some(val.value() as u8)
@@ -70,11 +70,11 @@ struct DisplayData(DisplayBackend, u8);
 
 impl DisplayData {
     fn update(&mut self) -> bool {
-        if let Some(value) = self.0.get_brightness() {
-            if self.1 != value {
-                self.1 = value;
-                return true;
-            }
+        if let Some(value) = self.0.get_brightness()
+            && self.1 != value
+        {
+            self.1 = value;
+            return true;
         }
         false
     }
@@ -116,7 +116,7 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
             subscribers: Vec::new(),
         }));
         let instance_clone = instance.clone();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             while let Ok(tx) = registration_rx.recv() {
                 if tx.send(BrightnessMessage::Init(f2b_tx.clone())).is_ok() {
                     trace!(&LOGGER, "Added Brightness Subscriber: {tx:?}");
@@ -129,7 +129,7 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
             }
         });
         let instance_clone = instance.clone();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             while let Ok(mut msg) = f2b_rx.recv() {
                 while let Ok(newer) = f2b_rx.try_recv() {
                     msg = newer;
@@ -151,7 +151,7 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
                             .expect("Couldn't get lock")
                             .display_cache
                             .get(&id)
-                            .and_then(|v| Some(v.1))
+                            .map(|v| v.1)
                         {
                             instance_clone
                                 .lock()
@@ -216,23 +216,21 @@ impl BrightnessManager {
                 if path.file_name().eq("device")
                     && let Ok(link) = fs::read_link(path.path())
                     && let Some(name) = link.file_name()
-                {
-                    if name
+                    && name
                         .to_str()
                         .is_some_and(|name| name.eq(&format!("card1-{connector}")))
-                    {
-                        println!("Found sysfs display {connector}");
-                        let path = bl_path.file_name();
-                        let Some(name) = path.to_str() else { continue };
-                        let Some(device) = get_sysfs_dev(name) else {
-                            continue;
-                        };
-                        let mut backend = DisplayBackend::Sysfs(device);
-                        let value = backend.get_brightness().unwrap_or(60);
-                        self.display_cache
-                            .insert(connector.clone(), DisplayData(backend, value));
-                        return;
-                    }
+                {
+                    println!("Found sysfs display {connector}");
+                    let path = bl_path.file_name();
+                    let Some(name) = path.to_str() else { continue };
+                    let Some(device) = get_sysfs_dev(name) else {
+                        continue;
+                    };
+                    let mut backend = DisplayBackend::Sysfs(device);
+                    let value = backend.get_brightness().unwrap_or(60);
+                    self.display_cache
+                        .insert(connector.clone(), DisplayData(backend, value));
+                    return;
                 }
             }
         }
@@ -244,7 +242,7 @@ impl BrightnessManager {
             println!("Found DDC/CI display {connector}");
             for display in ddc_hi::Display::enumerate() {
                 if id.to_string().eq(&display.info.id) {
-                    let mut backend = DisplayBackend::DdcCi(display);
+                    let mut backend = DisplayBackend::DdcCi(Box::new(display));
                     let value = backend.get_brightness().unwrap_or(60);
                     self.display_cache
                         .insert(connector.clone(), DisplayData(backend, value));
@@ -307,10 +305,10 @@ impl BrightnessManager {
                 }
             }
 
-            if drm_connector.as_deref() == Some(connector) {
-                if let Some(bus) = bus {
-                    return Ok(bus);
-                }
+            if drm_connector.as_deref() == Some(connector)
+                && let Some(bus) = bus
+            {
+                return Ok(bus);
             }
         }
 

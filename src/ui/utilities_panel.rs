@@ -62,10 +62,20 @@ pub fn build(
         String::new()
     };
     let monitor_valid = !monitor.is_empty();
+    println!(
+        "{:?}",
+        monitors
+            .item(monitor_idx)
+            .unwrap()
+            .downcast::<gdk::Monitor>()
+            .unwrap()
+            .connector()
+    );
     if monitor_valid {
         let _ = channels
             .br_tx()
             .send(BrightnessMessage::Request(monitor.clone()));
+        println!("req");
     }
 
     let volume_adjustment = Adjustment::new(60.0, 1.0, 100.0, 1.0, 5.0, 0.0);

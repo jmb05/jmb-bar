@@ -12,6 +12,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use jmb_logger_rs::*;
 use mpris::PlayerFinder;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -25,7 +26,7 @@ mod workspaces_panel;
 pub fn create_bars(app: &Application, backend: Backend) {
     let display = Display::default().expect("Couldn't find GDK Display");
     let app_clone = app.clone();
-    let bars: Mutex<HashMap<u32, ApplicationWindow>> = Mutex::new(HashMap::new());
+    let bars: Rc<Mutex<HashMap<u32, ApplicationWindow>>> = Rc::new(Mutex::new(HashMap::new()));
     let ac_channels = backend.subscribe();
     let action_centre = ActionCentre::create_action_centre(app.clone(), ac_channels);
     for monitor in 0..display.monitors().n_items() {
@@ -52,17 +53,17 @@ pub fn create_bars(app: &Application, backend: Backend) {
                 }
             } else if added == 1 {
                 debug!(&LOGGER, "Detected new monitor: {pos}");
+                let app_clone = app_clone.clone();
+                let action_centre = action_centre.clone();
                 let channels = backend.subscribe();
-                bars.lock().expect("Couldn't get active bars").insert(
-                    pos,
-                    create_bar(
-                        app_clone.clone(),
-                        &display,
+                let bars = bars.clone();
+                let display = display.clone();
+                glib::idle_add_local_once(move || {
+                    bars.lock().expect("Couldn't get active bars").insert(
                         pos,
-                        action_centre.clone(),
-                        channels,
-                    ),
-                );
+                        create_bar(app_clone, &display, pos, action_centre, channels),
+                    );
+                });
             }
         });
 }

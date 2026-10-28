@@ -17,7 +17,6 @@ use wayland_protocols::ext::idle_notify::v1::client::ext_idle_notification_v1::{
     Event, ExtIdleNotificationV1,
 };
 use wayland_protocols::ext::idle_notify::v1::client::ext_idle_notifier_v1::ExtIdleNotifierV1;
-use zbus;
 use zbus::conn::Builder;
 use zbus::message::Header;
 
@@ -70,14 +69,11 @@ impl Dispatch<ExtIdleNotifierV1, (), WlState> for WlState {
     fn event(
         _: &mut WlState,
         _: &ExtIdleNotifierV1,
-        event: <ExtIdleNotifierV1 as wayland_client::Proxy>::Event,
+        _: <ExtIdleNotifierV1 as wayland_client::Proxy>::Event,
         _: &(),
         _: &Connection,
         _: &QueueHandle<WlState>,
     ) {
-        match event {
-            _ => {}
-        }
     }
 }
 
@@ -85,7 +81,7 @@ impl Dispatch<ExtIdleNotifierV1, (), WlState> for WlState {
 struct Inhibitor {
     owner: String,
     application: String,
-    reason: String,
+    _reason: String,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -102,20 +98,6 @@ impl IdleStateInner {
     }
 }
 
-impl Into<IdleState> for IdleStateInner {
-    fn into(self) -> IdleState {
-        if self.should_dim() {
-            IdleState::Dimmed
-        } else if self.caffeine {
-            IdleState::Caffeine
-        } else if self.dbus_inhibited {
-            IdleState::Inhibited
-        } else {
-            IdleState::Active
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum IdleState {
     Init(Sender<IdleMessage>),
@@ -123,6 +105,20 @@ pub enum IdleState {
     Inhibited,
     Caffeine,
     Active,
+}
+
+impl From<IdleStateInner> for IdleState {
+    fn from(value: IdleStateInner) -> Self {
+        if value.should_dim() {
+            IdleState::Dimmed
+        } else if value.caffeine {
+            IdleState::Caffeine
+        } else if value.dbus_inhibited {
+            IdleState::Inhibited
+        } else {
+            IdleState::Active
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -404,7 +400,7 @@ impl ScreenSaver {
             Inhibitor {
                 owner,
                 application: application_name,
-                reason: reason_for_inhibit,
+                _reason: reason_for_inhibit,
             },
         );
 

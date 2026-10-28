@@ -180,7 +180,7 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
                     let mut last = manager
                         .display_cache
                         .get(&id)
-                        .and_then(|d| Some(d.value))
+                        .map(|d| d.value)
                         .unwrap_or(60);
                     let mut revert_flag = false;
                     for operation in operations {

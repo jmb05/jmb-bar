@@ -27,7 +27,7 @@ pub enum State {
 }
 
 impl State {
-    fn try_from_value(value: i64) -> Option<State> {
+    fn _try_from_value(value: i64) -> Option<State> {
         match value {
             5 => Some(State::Connecting),
             6 => Some(State::Connected),
@@ -37,7 +37,7 @@ impl State {
 }
 
 impl JsonSocketBackend {
-    async fn watch(instance: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn _watch(instance: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error + Send + Sync>> {
         let socket_address = instance
             .lock()
             .expect("Couldn't get lock")
@@ -89,7 +89,7 @@ impl JsonSocketBackend {
                             if let Some(state) = notification.get("State")
                                 && !state.is_null()
                             {
-                                let state = State::try_from_value(state.as_i64().unwrap_or(4))
+                                let state = State::_try_from_value(state.as_i64().unwrap_or(4))
                                     .unwrap_or(State::Disconnected);
                                 instance.lock().expect("Couldn't get lock").publish(state);
                             }

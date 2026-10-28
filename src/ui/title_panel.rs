@@ -42,33 +42,41 @@ pub fn manage_title(button_opt: &Option<Button>, player_opt: &Option<Player>) {
     let mut handled = false;
     if let Some(button) = button_opt
         && let Some(player) = player_opt
-        && let Ok(status) = player.get_playback_status()
-        && let Ok(metadata) = player.get_metadata()
     {
-        match status {
-            PlaybackStatus::Playing => {
-                button.set_visible(true);
-                button
-                    .child()
-                    .and_downcast::<Label>()
-                    .unwrap()
-                    .set_label(&format!(" {}", metadata.title().unwrap_or("")));
-                button.add_css_class("media");
-                button.add_css_class("playing");
-                handled = true;
+        //println!("{:?}", player.get_playback_status());
+        if let Ok(status) = player.get_playback_status()
+            && let Ok(metadata) = player.get_metadata()
+        {
+            match status {
+                PlaybackStatus::Playing => {
+                    button.set_visible(true);
+                    button
+                        .child()
+                        .and_downcast::<Label>()
+                        .unwrap()
+                        .set_label(&format!(" {}", metadata.title().unwrap_or("")));
+                    button.add_css_class("media");
+                    button.add_css_class("playing");
+                    handled = true;
+                }
+                PlaybackStatus::Paused => {
+                    button.set_visible(true);
+                    button
+                        .child()
+                        .and_downcast::<Label>()
+                        .unwrap()
+                        .set_label(&format!(" {}", metadata.title().unwrap_or("")));
+                    button.add_css_class("media");
+                    button.remove_css_class("playing");
+                    handled = true;
+                }
+                PlaybackStatus::Stopped => {
+                    button.set_visible(true);
+                    button.remove_css_class("media");
+                    button.remove_css_class("playing");
+                    set_title(&HyprlandComms::get_current_title(), button_opt);
+                }
             }
-            PlaybackStatus::Paused => {
-                button.set_visible(true);
-                button
-                    .child()
-                    .and_downcast::<Label>()
-                    .unwrap()
-                    .set_label(&format!(" {}", metadata.title().unwrap_or("")));
-                button.add_css_class("media");
-                button.remove_css_class("playing");
-                handled = true;
-            }
-            PlaybackStatus::Stopped => {}
         }
         if !handled {
             button.set_visible(true);

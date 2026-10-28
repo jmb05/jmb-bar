@@ -1,22 +1,22 @@
 pub mod audio;
 pub mod brightness_control;
+pub(crate) mod idle;
+pub(crate) mod json_socket;
 pub mod network;
 pub mod perf_stats;
-pub(crate) mod tailscale;
 pub mod window_manager_hypr;
 
 use crate::LOGGER;
 use crate::backend::audio::{MediaBackend, MediaCommand};
 use crate::backend::brightness_control::{BrightnessManager, BrightnessMessage};
+use crate::backend::idle::{IdleDaemon, IdleMessage, IdleState};
+use crate::backend::json_socket::{JsonSocketBackend, State};
 use crate::backend::network::{NetworkBackendHandle, NetworkCommand, NetworkState};
 use crate::backend::perf_stats::{Stats, StatsBackend};
-use crate::backend::tailscale::{TailscaleBackend, TailscaleState};
 use crate::backend::window_manager_hypr::{HyprlandComms, WindowManagerEvent};
 use crossbeam_channel::{Receiver, Sender};
 use jmb_logger_rs::*;
 use std::fmt::Debug;
-use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::UnboundedSender;
 
 pub(crate) type Registrator<M> = Sender<Sender<M>>;
@@ -44,6 +44,27 @@ pub trait BackendThread<M: Debug + Clone, D> {
     }
 }
 
+pub trait SimpleBackendThread<M: Debug + Clone>: BackendThread<M, ()> {
+    fn subscribers(&self) -> &Vec<Sender<M>>;
+    fn init(registration_rx: Receiver<Sender<M>>);
+}
+
+impl<M: Debug + Clone, S: SimpleBackendThread<M>> BackendThread<M, ()> for S {
+    fn subscribe(registrator: Registrator<M>) -> (Receiver<M>, ()) {
+        let (tx, rx) = crossbeam_channel::unbounded::<M>();
+        let _ = registrator.send(tx);
+        (rx, ())
+    }
+
+    fn subscribers(&self) -> &Vec<Sender<M>> {
+        SimpleBackendThread::subscribers(self)
+    }
+
+    fn init(registration_rx: Receiver<Sender<M>>) {
+        <S as SimpleBackendThread<M>>::init(registration_rx)
+    }
+}
+
 #[derive(Clone)]
 pub struct Backend {
     hypr_registrator: Registrator<WindowManagerEvent>,
@@ -51,8 +72,8 @@ pub struct Backend {
     br_registrator: Registrator<BrightnessMessage>,
     stats_registrator: Registrator<Stats>,
     media_registrator: Registrator<MediaCommand>,
-    tailscale_registrator: Registrator<TailscaleState>,
-    hypridle: Arc<Mutex<Option<Child>>>,
+    tailscale_registrator: Registrator<State>,
+    idle_registrator: Registrator<IdleState>,
 }
 
 impl Backend {
@@ -63,10 +84,8 @@ impl Backend {
         let br_registrator = BrightnessManager::start();
         let stats_registrator = StatsBackend::start();
         let media_registrator = MediaBackend::start();
-        let tailscale_registrator = TailscaleBackend::start();
-        let hypridle = Arc::new(Mutex::new(
-            Command::new("hypridle").stdout(Stdio::null()).spawn().ok(),
-        ));
+        let tailscale_registrator = JsonSocketBackend::start();
+        let idle_registrator = IdleDaemon::start();
         debug!(&LOGGER, "Started Backend threads");
         Self {
             hypr_registrator,
@@ -75,7 +94,7 @@ impl Backend {
             stats_registrator,
             media_registrator,
             tailscale_registrator,
-            hypridle,
+            idle_registrator,
         }
     }
 
@@ -85,7 +104,8 @@ impl Backend {
         let (br_rx, br_tx) = BrightnessManager::subscribe(self.br_registrator.clone());
         let (stats_rx, _) = StatsBackend::subscribe(self.stats_registrator.clone());
         let (media_rx, media_tx) = MediaBackend::subscribe(self.media_registrator.clone());
-        let (tailscale_rx, _) = TailscaleBackend::subscribe(self.tailscale_registrator.clone());
+        let (tailscale_rx, _) = JsonSocketBackend::subscribe(self.tailscale_registrator.clone());
+        let (idle_rx, idle_tx) = IdleDaemon::subscribe(self.idle_registrator.clone());
         BackendChannels {
             net_rx: Some(net_rx),
             net_tx,
@@ -96,12 +116,9 @@ impl Backend {
             media_rx: Some(media_rx),
             media_tx,
             tailscale_rx: Some(tailscale_rx),
-            hypridle: self.hypridle.clone(),
+            idle_rx: Some(idle_rx),
+            idle_tx,
         }
-    }
-
-    pub fn create_drop_guard(&self) -> DropGuard {
-        DropGuard(self.hypridle.clone())
     }
 }
 
@@ -114,8 +131,9 @@ pub struct BackendChannels {
     stats_rx: Option<Receiver<Stats>>,
     media_rx: Option<Receiver<MediaCommand>>,
     media_tx: Sender<MediaCommand>,
-    tailscale_rx: Option<Receiver<TailscaleState>>,
-    hypridle: Arc<Mutex<Option<Child>>>,
+    tailscale_rx: Option<Receiver<State>>,
+    idle_rx: Option<Receiver<IdleState>>,
+    idle_tx: Sender<IdleMessage>,
 }
 
 impl BackendChannels {
@@ -131,11 +149,14 @@ impl BackendChannels {
     pub fn take_stats_rx(&mut self) -> Option<Receiver<Stats>> {
         self.stats_rx.take()
     }
-    pub fn take_ts_rx(&mut self) -> Option<Receiver<TailscaleState>> {
+    pub fn take_netbird_rx(&mut self) -> Option<Receiver<State>> {
         self.tailscale_rx.take()
     }
     pub fn take_media_rx(&mut self) -> Option<Receiver<MediaCommand>> {
         self.media_rx.take()
+    }
+    pub fn take_idle_rx(&mut self) -> Option<Receiver<IdleState>> {
+        self.idle_rx.take()
     }
     pub fn net_tx(&self) -> UnboundedSender<NetworkCommand> {
         self.net_tx.clone()
@@ -146,21 +167,7 @@ impl BackendChannels {
     pub fn media_tx(&self) -> Sender<MediaCommand> {
         self.media_tx.clone()
     }
-    pub fn hypridle(&self) -> Arc<Mutex<Option<Child>>> {
-        self.hypridle.clone()
-    }
-}
-
-pub struct DropGuard(Arc<Mutex<Option<Child>>>);
-impl Drop for DropGuard {
-    fn drop(&mut self) {
-        let mut hypridle = self
-            .0
-            .lock()
-            .expect("Couldn't get lock on hypridle child process handle");
-        if hypridle.is_some() {
-            info!(&LOGGER, "Killing hypridle");
-            let _ = hypridle.as_mut().unwrap().kill();
-        }
+    pub fn idle_tx(&self) -> Sender<IdleMessage> {
+        self.idle_tx.clone()
     }
 }

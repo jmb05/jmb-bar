@@ -13,7 +13,7 @@ glib = "0.22.10"
 mpris = "2.1.0"
 time-format = "1.2.4"
 nmrs = "3.5.7"
-tokio = { version = "1.53.3", features = ["rt", "time", "net", "sync", "rt-multi-thread", "io-util", "macros"] }
+tokio = { version = "1.53.3", features = ["rt", "time", "net", "sync", "rt-multi-thread", "io-util", "macros", "signal"] }
 futures-util = "0.3"
 serde_json = "1.0.154"
 crossbeam-channel = "0.5.17"
@@ -32,6 +32,10 @@ http-body-util = "0.1.5"
 brightness = { version = "0.8.0", features = ["blocking"] }
 battery = "0.7.8"
 ddc-hi = { git = "https://github.com/jmb05/ddc-hi-rs" }
+wayland-protocols = { version = "0.32.13", features = ["staging", "client"] }
+wayland-client = "0.31.15"
+zbus = "5.19.0"
+#zbus = "6.1.0"
 
 [build-dependencies]
 glib-build-tools = "0.22.8"

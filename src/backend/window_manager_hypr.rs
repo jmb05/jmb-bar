@@ -1,5 +1,5 @@
 use crate::LOGGER;
-use crate::backend::BackendThread;
+use crate::backend::{BackendThread, SimpleBackendThread};
 use crossbeam_channel::{Receiver, Sender};
 use hyprland::data::{Client, Monitor, Workspaces};
 use hyprland::event_listener::EventListener;
@@ -23,14 +23,7 @@ pub struct HyprlandComms {
     subscribers: Vec<Sender<WindowManagerEvent>>,
 }
 
-impl BackendThread<WindowManagerEvent, ()> for HyprlandComms {
-    fn subscribe(
-        registrator: Sender<Sender<WindowManagerEvent>>,
-    ) -> (Receiver<WindowManagerEvent>, ()) {
-        let (tx, rx) = crossbeam_channel::unbounded::<WindowManagerEvent>();
-        let _ = registrator.send(tx);
-        (rx, ())
-    }
+impl SimpleBackendThread<WindowManagerEvent> for HyprlandComms {
 
     fn subscribers(&self) -> &Vec<Sender<WindowManagerEvent>> {
         &self.subscribers

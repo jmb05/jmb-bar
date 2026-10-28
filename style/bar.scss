@@ -129,6 +129,14 @@ button {
   background: $red;
 }
 
+.caffeine.idle {
+  background: $yellow;
+}
+
+.caffeine.inhibit {
+  background: $green;
+}
+
 .stats {
   padding: 0 6px;
 }
@@ -176,6 +184,14 @@ button {
   color: $lightgreen;
 }
 
+.vpn-icon.login {
+  color: $yellow;
+}
+
+.vpn-icon.login:hover {
+  color: $yellow;
+}
+
 .vpn {
   color: $background;
   background: $red;
@@ -192,7 +208,7 @@ button {
   background: $green;
 }
 
-.vpn.starting {
+.vpn.login {
   background: $yellow;
 }
 

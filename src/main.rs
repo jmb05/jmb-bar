@@ -13,23 +13,20 @@ use std::process::Command;
 use std::rc::Rc;
 
 pub const LOGGER: Logger = Logger::create(Level::DEBUG);
+pub const APP_NAME: &str = "net.jmb19905.jmb-bar";
 
 fn main() {
     info!(&LOGGER, "Starting jmb-bar");
 
     gio::resources_register_include!("templates.gresource").expect("Failed to register resources");
 
-    let app = Application::builder()
-        .application_id("net.jmb19905.jmb-bar")
-        .build();
+    let app = Application::builder().application_id(APP_NAME).build();
 
     let watcher_slot: Rc<RefCell<Option<RecommendedWatcher>>> = Rc::new(RefCell::new(None));
 
     let _ = Command::new("pkill hypridle").output(); // Kill existing hypridle processes
 
     let backend = Backend::start();
-    let _guard = backend.create_drop_guard(); // Make sure hypridle gets killed when the process exits
-    trace!(&LOGGER, "Initialized DropGuard");
 
     app.connect_startup(move |_| {
         let provider = CssProvider::new();

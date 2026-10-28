@@ -1,9 +1,9 @@
 use crate::LOGGER;
-use crate::backend::BackendChannels;
 use crate::backend::audio::MediaCommand;
 use crate::backend::brightness_control::BrightnessMessage;
+use crate::backend::idle::{IdleMessage, IdleState};
 use crate::backend::network::{NetworkCommand, NetworkState, NetworkType};
-use crate::backend::tailscale::TailscaleState;
+use crate::backend::{BackendChannels, json_socket};
 use crate::ui::action_centre::ActionCentre;
 use crate::ui::widgets::{ExpandableBarItem, IconSlider};
 use battery::State;
@@ -65,8 +65,7 @@ pub fn build(
     if monitor_valid {
         let _ = channels
             .br_tx()
-            .send(BrightnessMessage::Request(monitor.clone()))
-            .is_ok();
+            .send(BrightnessMessage::Request(monitor.clone()));
     }
 
     let volume_adjustment = Adjustment::new(60.0, 1.0, 100.0, 1.0, 5.0, 0.0);
@@ -108,7 +107,11 @@ pub fn build(
         move |slider, _button, _| {
             if monitor_valid {
                 let slider_val = slider.value().max(1.0);
-                let _ = br_tx.send(BrightnessMessage::Value(monitor.clone(), slider_val as u8));
+                let _ = br_tx.send(BrightnessMessage::Value(
+                    monitor.clone(),
+                    slider_val as u8,
+                    false,
+                ));
                 let idx =
                     ((slider_val / 100.0) * (BRIGHTNESS_ICONS.len() - 1) as f64 + 0.5) as usize;
                 slider.imp().main_icon.set_font_icon(BRIGHTNESS_ICONS[idx]);
@@ -121,7 +124,7 @@ pub fn build(
         monitor,
         move |slider, _button, _| {
             if monitor_valid {
-                let _ = br_tx.send(BrightnessMessage::Value(monitor.clone(), 60));
+                let _ = br_tx.send(BrightnessMessage::Value(monitor.clone(), 60, false));
                 slider.set_value(60.0);
                 let idx = ((60.0 / 100.0) * (BRIGHTNESS_ICONS.len() - 1) as f64 + 0.5) as usize;
                 slider.imp().main_icon.set_font_icon(BRIGHTNESS_ICONS[idx]);
@@ -131,27 +134,12 @@ pub fn build(
 
     let caffeine_button = Button::with_label(" ");
     caffeine_button.add_css_class("caffeine");
-    let hypridle = channels.hypridle();
+    let idle_tx = channels.idle_tx();
     caffeine_button.connect_clicked(move |button| {
-        let mut child = hypridle.lock().expect("Couldn't get lock on hypridle");
-        if child.is_none() {
-            if let Ok(new_child) = Command::new("hypridle").spawn() {
-                let _ = child.insert(new_child);
-                button.remove_css_class("on")
-            }
-        } else if child.is_some()
-            && let Ok(exit) = child.as_mut().unwrap().try_wait()
-            && let Some(_) = exit
-        {
-            if let Ok(new_child) = Command::new("hypridle").spawn() {
-                let _ = child.insert(new_child);
-                button.remove_css_class("on")
-            }
+        if button.has_css_class("on") {
+            let _ = idle_tx.send(IdleMessage::Release);
         } else {
-            if child.as_mut().unwrap().kill().is_ok() {
-                let _ = child.take();
-                button.add_css_class("on");
-            }
+            let _ = idle_tx.send(IdleMessage::Inhibit);
         }
     });
 
@@ -228,10 +216,10 @@ pub fn build(
         let _ = net_tx.send(NetworkCommand::ToggleVpn(String::from("wg")));
     });
 
-    let ts_button = Button::with_label("ts");
-    ts_button.add_css_class("vpn");
-    ts_button.connect_clicked(move |button| {
-        let _ = Command::new("tailscale")
+    let netbird_button = Button::with_label("nb");
+    netbird_button.add_css_class("vpn");
+    netbird_button.connect_clicked(move |button| {
+        let _ = Command::new("netbird")
             .arg(if button.has_css_class("on") {
                 "down"
             } else {
@@ -249,7 +237,7 @@ pub fn build(
     vpn_box.set_valign(Align::Fill);
     vpn_box.set_vexpand(true);
     vpn_box.append(&wg_button);
-    vpn_box.append(&ts_button);
+    vpn_box.append(&netbird_button);
     //vpn_box.append(&tud_button);
     //vpn_box.append(&mvd_button);
 
@@ -327,8 +315,10 @@ pub fn build(
     let br_rx = channels.take_br_rx().unwrap();
     let net_rx = channels.take_net_rx().unwrap();
     let stats_rx = channels.take_stats_rx().unwrap();
-    let ts_rx = channels.take_ts_rx().unwrap();
-    let hypridle = channels.hypridle();
+    let netbird_rx = channels.take_netbird_rx().unwrap();
+    let idle_rx = channels.take_idle_rx().unwrap();
+    let monitor_clone = monitor.clone();
+    let br_tx = channels.br_tx();
     glib::timeout_add_local(Duration::from_millis(100), move || {
         while let Ok(command) = media_rx.try_recv() {
             if let MediaCommand::Cmd(vol, mute, bt) = command {
@@ -355,7 +345,7 @@ pub fn build(
             }
         }
         while let Ok(message) = br_rx.try_recv() {
-            if let BrightnessMessage::Value(mon, value) = message
+            if let BrightnessMessage::Value(mon, value, _) = message
                 && monitor.eq(&mon)
             {
                 brightness.set_value(value as f64);
@@ -367,16 +357,32 @@ pub fn build(
                     .set_font_icon(BRIGHTNESS_ICONS[idx]);
             }
         }
-        if let Ok(mut hypridle) = hypridle.try_lock() {
-            if hypridle.is_none() {
-                caffeine_button.add_css_class("on");
-            } else {
-                if let Ok(exit) = hypridle.as_mut().unwrap().try_wait()
-                    && exit.is_some()
-                {
-                    caffeine_button.add_css_class("on");
-                } else {
+        while let Ok(state) = idle_rx.try_recv() {
+            match state {
+                IdleState::Dimmed => {
+                    if !caffeine_button.has_css_class("idle") && monitor_valid {
+                        let _ =
+                            br_tx.send(BrightnessMessage::Value(monitor_clone.clone(), 20, true));
+                        brightness.set_value(20.0);
+                        println!("Dimmed: {monitor_clone}");
+                    }
+                    caffeine_button.add_css_class("idle");
+                    caffeine_button.remove_css_class("inhibit");
                     caffeine_button.remove_css_class("on");
+                }
+                other => {
+                    caffeine_button.remove_css_class("idle");
+                    caffeine_button.remove_css_class("inhibit");
+                    caffeine_button.remove_css_class("on");
+                    if monitor_valid {
+                        let _ = br_tx.send(BrightnessMessage::Revert(monitor_clone.clone()));
+                    }
+                    match other {
+                        IdleState::Caffeine => caffeine_button.add_css_class("on"),
+                        IdleState::Inhibited => caffeine_button.add_css_class("inhibit"),
+                        IdleState::Active => {}
+                        _ => {}
+                    }
                 }
             }
         }
@@ -419,34 +425,43 @@ pub fn build(
                 _ => {}
             }
         }
-        while let Ok(tailscale_state) = ts_rx.try_recv() {
+        while let Ok(tailscale_state) = netbird_rx.try_recv() {
             match tailscale_state {
-                TailscaleState::Stopped => {
-                    ts_button.remove_css_class("on");
-                    ts_button.remove_css_class("starting");
-                    ts_button.remove_css_class("unknown");
+                json_socket::State::Disconnected => {
+                    netbird_button.remove_css_class("on");
+                    netbird_button.remove_css_class("starting");
+                    netbird_button.remove_css_class("unknown");
+                    netbird_button.remove_css_class("login");
                 }
-                TailscaleState::Starting => {
-                    ts_button.remove_css_class("on");
-                    ts_button.add_css_class("starting");
-                    ts_button.remove_css_class("unknown");
+                json_socket::State::Connecting => {
+                    netbird_button.remove_css_class("on");
+                    netbird_button.add_css_class("starting");
+                    netbird_button.remove_css_class("unknown");
+                    netbird_button.remove_css_class("login");
                 }
-                TailscaleState::Running => {
-                    ts_button.add_css_class("on");
-                    ts_button.remove_css_class("starting");
-                    ts_button.remove_css_class("unknown");
+                json_socket::State::Connected => {
+                    netbird_button.add_css_class("on");
+                    netbird_button.remove_css_class("starting");
+                    netbird_button.remove_css_class("unknown");
+                    netbird_button.remove_css_class("login");
                 }
-                _ => {
-                    ts_button.remove_css_class("on");
-                    ts_button.remove_css_class("starting");
-                    ts_button.add_css_class("unknown");
+                json_socket::State::NeedsLogin => {
+                    netbird_button.remove_css_class("on");
+                    netbird_button.remove_css_class("starting");
+                    netbird_button.remove_css_class("unknown");
+                    netbird_button.add_css_class("login");
                 }
             }
         }
-        if wg_button.has_css_class("on") || ts_button.has_css_class("on") {
+        if wg_button.has_css_class("on") || netbird_button.has_css_class("on") {
             vpn_button.add_css_class("on");
+            vpn_button.remove_css_class("login");
+        } else if wg_button.has_css_class("login") || netbird_button.has_css_class("login") {
+            vpn_button.add_css_class("login");
+            vpn_button.remove_css_class("on");
         } else {
             vpn_button.remove_css_class("on");
+            vpn_button.remove_css_class("login");
         }
         while let Ok(stats) = stats_rx.try_recv() {
             cpu_label.set_label(&format!("{}%", stats.cpu));

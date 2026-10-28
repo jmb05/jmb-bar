@@ -4,8 +4,9 @@ use brightness::blocking::{Brightness, BrightnessDevice};
 use crossbeam_channel::{Receiver, Sender};
 use ddc_hi::Ddc;
 use jmb_logger_rs::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::fmt::{Debug, Formatter};
 use std::os::unix::prelude::MetadataExt;
 use std::path::PathBuf;
 use std::process::Command;
@@ -16,6 +17,20 @@ use std::{fs, thread};
 pub enum DisplayBackend {
     Sysfs(BrightnessDevice),
     DdcCi(Box<ddc_hi::Display>),
+}
+
+impl Debug for DisplayBackend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DisplayBackend::Sysfs(dev) => {
+                return dev.fmt(f);
+            }
+            DisplayBackend::DdcCi(displ) => {
+                f.write_str(&displ.info.id).expect("Error");
+            }
+        }
+        Ok(())
+    }
 }
 
 fn get_sysfs_dev(id: &str) -> Option<BrightnessDevice> {
@@ -62,26 +77,45 @@ impl DisplayBackend {
 #[derive(Debug, Clone)]
 pub enum BrightnessMessage {
     Init(Sender<BrightnessMessage>),
-    Value(String, u8),
+    Value(String, u8, bool),
+    Revert(String),
     Request(String),
 }
 
-struct DisplayData(DisplayBackend, u8);
+#[derive(Debug)]
+struct DisplayData {
+    backend: DisplayBackend,
+    value: u8,
+    saved_value: Option<u8>,
+}
 
 impl DisplayData {
+    fn new(backend: DisplayBackend, value: u8) -> Self {
+        Self {
+            backend,
+            value,
+            saved_value: None,
+        }
+    }
+
+    fn save(&mut self) -> Option<&u8> {
+        self.saved_value = Some(self.value);
+        self.saved_value.as_ref()
+    }
+
     fn update(&mut self) -> bool {
-        if let Some(value) = self.0.get_brightness()
-            && self.1 != value
+        if let Some(value) = self.backend.get_brightness()
+            && self.value != value
         {
-            self.1 = value;
+            self.value = value;
             return true;
         }
         false
     }
 
     fn set_brightness(&mut self, percent: u8) {
-        self.0.set_brightness(percent);
-        self.1 = percent;
+        self.backend.set_brightness(percent);
+        self.value = percent;
     }
 }
 
@@ -119,7 +153,7 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
         thread::spawn(move || {
             while let Ok(tx) = registration_rx.recv() {
                 if tx.send(BrightnessMessage::Init(f2b_tx.clone())).is_ok() {
-                    trace!(&LOGGER, "Added Brightness Subscriber: {tx:?}");
+                    debug!(&LOGGER, "Added Brightness Subscriber: {tx:?}");
                     instance_clone
                         .lock()
                         .expect("Couldn't get lock")
@@ -130,36 +164,53 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
         });
         let instance_clone = instance.clone();
         thread::spawn(move || {
-            while let Ok(mut msg) = f2b_rx.recv() {
-                while let Ok(newer) = f2b_rx.try_recv() {
-                    msg = newer;
-                }
-                match msg {
-                    BrightnessMessage::Value(id, val) => {
-                        instance_clone
-                            .lock()
-                            .expect("Couldn't get lock")
-                            .set_brightness(id, val);
+            loop {
+                // Ensure all Messages are handled in the correct order
+                let mut operations: HashMap<String, Vec<Operation>> = HashMap::new();
+                let mut requests: HashSet<String> = HashSet::new();
+                if let Ok(msg) = f2b_rx.recv() {
+                    Self::insert_message_operation(&mut operations, &mut requests, msg);
+                    while let Ok(msg) = f2b_rx.try_recv() {
+                        Self::insert_message_operation(&mut operations, &mut requests, msg);
                     }
-                    BrightnessMessage::Request(id) => {
-                        instance_clone
-                            .lock()
-                            .expect("Couldn't get lock")
-                            .register_display(id.clone());
-                        if let Some(val) = instance_clone
-                            .lock()
-                            .expect("Couldn't get lock")
-                            .display_cache
-                            .get(&id)
-                            .map(|v| v.1)
-                        {
-                            instance_clone
-                                .lock()
-                                .expect("Couldn't get lock")
-                                .publish(BrightnessMessage::Value(id, val));
+                }
+
+                let mut manager = instance_clone.lock().unwrap();
+                for (id, operations) in operations {
+                    let mut last = manager
+                        .display_cache
+                        .get(&id)
+                        .and_then(|d| Some(d.value))
+                        .unwrap_or(60);
+                    let mut revert_flag = false;
+                    for operation in operations {
+                        match operation {
+                            Operation::Set(val, save) => {
+                                if save {
+                                    manager.display_cache.get_mut(&id).and_then(|d| d.save());
+                                }
+                                last = val;
+                                revert_flag = false;
+                            }
+                            Operation::Revert => {
+                                last = manager
+                                    .display_cache
+                                    .get_mut(&id)
+                                    .and_then(|d| d.saved_value.take())
+                                    .unwrap_or(last);
+                                revert_flag = true;
+                            }
                         }
                     }
-                    _ => {}
+                    if revert_flag {
+                        manager.publish(BrightnessMessage::Value(id.clone(), last, false));
+                    }
+                    manager.set_brightness(id, last);
+                }
+                for id in requests {
+                    if let Some(val) = manager.get_brightness(id.clone()) {
+                        manager.publish(BrightnessMessage::Value(id, val, false));
+                    }
                 }
             }
         });
@@ -168,9 +219,11 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
                 thread::sleep(Duration::from_millis(10_000));
                 let mut messages = vec![];
 
-                for monitor in &mut instance.lock().expect("Couldn't get lock").display_cache {
-                    if monitor.1.update() {
-                        messages.push(BrightnessMessage::Value(monitor.0.clone(), monitor.1.1));
+                for (monitor, data) in
+                    &mut instance.lock().expect("Couldn't get lock").display_cache
+                {
+                    if data.update() {
+                        messages.push(BrightnessMessage::Value(monitor.clone(), data.value, false));
                     }
                 }
                 for message in messages {
@@ -179,6 +232,12 @@ impl BackendThread<BrightnessMessage, Sender<BrightnessMessage>> for BrightnessM
             }
         });
     }
+}
+
+#[derive(Debug)]
+enum Operation {
+    Set(u8, bool),
+    Revert,
 }
 
 impl BrightnessManager {
@@ -191,12 +250,12 @@ impl BrightnessManager {
         }
     }
 
-    pub fn _get_brightness(&mut self, connector: String) -> Option<u8> {
+    pub fn get_brightness(&mut self, connector: String) -> Option<u8> {
         if !self.display_cache.contains_key(&connector) {
             self.register_display(connector.clone());
         }
         if let Some(display) = self.display_cache.get_mut(&connector) {
-            display.0.get_brightness()
+            display.backend.get_brightness()
         } else {
             None
         }
@@ -220,7 +279,7 @@ impl BrightnessManager {
                         .to_str()
                         .is_some_and(|name| name.eq(&format!("card1-{connector}")))
                 {
-                    println!("Found sysfs display {connector}");
+                    debug!(&LOGGER, "Found sysfs display {connector}");
                     let path = bl_path.file_name();
                     let Some(name) = path.to_str() else { continue };
                     let Some(device) = get_sysfs_dev(name) else {
@@ -229,7 +288,7 @@ impl BrightnessManager {
                     let mut backend = DisplayBackend::Sysfs(device);
                     let value = backend.get_brightness().unwrap_or(60);
                     self.display_cache
-                        .insert(connector.clone(), DisplayData(backend, value));
+                        .insert(connector.clone(), DisplayData::new(backend, value));
                     return;
                 }
             }
@@ -239,13 +298,13 @@ impl BrightnessManager {
             && let Ok(data) = fs::metadata(path)
         {
             let id = data.rdev();
-            println!("Found DDC/CI display {connector}");
+            debug!(&LOGGER, "Found DDC/CI display {connector}");
             for display in ddc_hi::Display::enumerate() {
                 if id.to_string().eq(&display.info.id) {
                     let mut backend = DisplayBackend::DdcCi(Box::new(display));
                     let value = backend.get_brightness().unwrap_or(60);
                     self.display_cache
-                        .insert(connector.clone(), DisplayData(backend, value));
+                        .insert(connector.clone(), DisplayData::new(backend, value));
                     break;
                 }
             }
@@ -317,5 +376,36 @@ impl BrightnessManager {
             format!("No DDC-capable display found for {connector}"),
         )
         .into())
+    }
+
+    fn insert_message_operation(
+        operations: &mut HashMap<String, Vec<Operation>>,
+        requests: &mut HashSet<String>,
+        msg: BrightnessMessage,
+    ) {
+        match msg {
+            BrightnessMessage::Value(id, val, save) => {
+                if !operations.contains_key(&id) {
+                    operations.insert(id.clone(), Vec::new());
+                }
+                let ops = operations.get_mut(&id);
+                if let Some(ops) = ops {
+                    ops.push(Operation::Set(val, save));
+                }
+            }
+            BrightnessMessage::Revert(id) => {
+                if !operations.contains_key(&id) {
+                    operations.insert(id.clone(), Vec::new());
+                }
+                let ops = operations.get_mut(&id);
+                if let Some(ops) = ops {
+                    ops.push(Operation::Revert);
+                }
+            }
+            BrightnessMessage::Request(id) => {
+                requests.insert(id);
+            }
+            _ => {}
+        }
     }
 }
